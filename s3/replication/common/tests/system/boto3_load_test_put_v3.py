@@ -22,6 +22,7 @@
 import os
 import sys
 import boto3
+import botocore
 import threading
 from config import Config
 from object_generator import GlobalTestDataBlock
@@ -31,14 +32,14 @@ from s3replicationcommon.timer import Timer
 
 
 def upload_object(logger, work_item):
-    logger.debug("upload_object()")
+    # logger.debug("upload_object()")
 
     # data = GlobalTestDataBlock.create(work_item.object_size)
     # md5 = GlobalTestDataBlock.get_md5()
     gen = FixedObjectDataGenerator(logger, work_item.object_name, work_item.object_size)
     data = gen.get_full_data()
 
-    logger.info("Starting upload for object {}".format(work_item.object_name))
+    # logger.info("Starting upload for object {}".format(work_item.object_name))
     work_item.status = "failed"
 
     timer = Timer()
@@ -58,7 +59,7 @@ def upload_object(logger, work_item):
         "\nUploaded data md5 {}".format(md5)
 
     work_item.status = "success"
-    logger.info("Completed upload for object {}".format(work_item.object_name))
+    # logger.info("Completed upload for object {}".format(work_item.object_name))
 
     work_item.time_for_upload = timer.elapsed_time_ms()
 
@@ -79,7 +80,7 @@ def main():
 
     bucket_name = "boto3bucket"
     total_count = 100  # Number of objects to upload.
-    object_size = 4096  # Bytes.
+    object_size = 1024  # Bytes.
 
     # Setup logging and get logger
     log_config_file = os.path.join(os.path.dirname(__file__),
@@ -95,18 +96,16 @@ def main():
     GlobalTestDataBlock.create(object_size)
 
     # Create resources for each thread.
-    sessions = []
-    clients = []
-    work_items = []
-    for i in range(total_count):
-        session = boto3.session.Session()
-        sessions.append(session)
-
-        client = session.client("s3", use_ssl=False,
+    boto_config=botocore.config.Config(
+            max_pool_connections=10)
+    session = boto3.session.Session()
+    client = session.client("s3", use_ssl=False,
                                 endpoint_url=config.endpoint,
                                 aws_access_key_id=config.access_key,
-                                aws_secret_access_key=config.secret_key)
-        clients.append(client)
+                                aws_secret_access_key=config.secret_key,
+                                config=boto_config)
+    work_items = []
+    for i in range(total_count):
 
         # Generate object name
         object_name = "test_object_" + str(i) + "_sz" + str(object_size)

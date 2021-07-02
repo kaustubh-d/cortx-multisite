@@ -43,7 +43,14 @@ def upload_object(logger, work_item):
 
     timer = Timer()
     timer.start()
-    response = work_item.s3_client.put_object(
+    session = boto3.session.Session()
+
+    client = session.client("s3", use_ssl=False,
+                            endpoint_url=work_item.endpoint,
+                            aws_access_key_id=work_item.access_key,
+                            aws_secret_access_key=work_item.secret_key)
+
+    response = client.put_object(
         Body=data,
         ContentLength=work_item.object_size,
         Bucket=work_item.bucket_name,
@@ -64,11 +71,14 @@ def upload_object(logger, work_item):
 
 
 class WorkItem:
-    def __init__(self, bucket_name, object_name, object_size, s3_client):
+    def __init__(self, bucket_name, object_name, object_size,
+                 endpoint, access_key, secret_key):
         self.bucket_name = bucket_name
         self.object_name = object_name
         self.object_size = object_size
-        self.s3_client = s3_client
+        self.endpoint = endpoint
+        self.access_key = access_key
+        self.secret_key = secret_key
         self.status = None
         self.time_for_upload = None
 
@@ -95,22 +105,12 @@ def main():
     GlobalTestDataBlock.create(object_size)
 
     # Create resources for each thread.
-    sessions = []
-    clients = []
     work_items = []
     for i in range(total_count):
-        session = boto3.session.Session()
-        sessions.append(session)
-
-        client = session.client("s3", use_ssl=False,
-                                endpoint_url=config.endpoint,
-                                aws_access_key_id=config.access_key,
-                                aws_secret_access_key=config.secret_key)
-        clients.append(client)
-
         # Generate object name
         object_name = "test_object_" + str(i) + "_sz" + str(object_size)
-        work_item = WorkItem(bucket_name, object_name, object_size, client)
+        work_item = WorkItem(bucket_name, object_name, object_size,
+                             config.endpoint, config.access_key, config.secret_key)
         work_items.append(work_item)
 
     # Start threads to upload objects.

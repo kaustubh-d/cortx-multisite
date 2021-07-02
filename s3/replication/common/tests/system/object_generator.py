@@ -81,9 +81,10 @@ class FixedObjectDataGenerator:
         return self._state
 
     def get_md5(self):
-        if self._state == S3RequestState.COMPLETED:
-            return self._md5
-        return None
+        return self._md5
+
+    def get_full_data(self):
+        return self._data
 
     async def fetch(self, chunk_size):
         assert chunk_size == self.object_size, \

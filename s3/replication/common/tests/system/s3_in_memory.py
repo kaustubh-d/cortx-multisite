@@ -34,6 +34,7 @@ async def on_shutdown(app):
 # Route table declaration
 routes = web.RouteTableDef()
 
+connections_set = set()
 
 # PUT Object API.
 @routes.put('/{bucket_name}/{object_name}')  # noqa: E302
@@ -43,6 +44,9 @@ async def put_object(request):
     bucket_name = request.match_info['bucket_name']
     object_name = request.match_info['object_name']
     print('API: PUT /{}/{}'.format(bucket_name, object_name))
+    conn_fd = request.transport.get_extra_info('socket').fileno()
+    # print('conn_fd {}'.format(conn_fd))
+    connections_set.add(conn_fd)
 
     data = await request.read()
 
@@ -52,11 +56,13 @@ async def put_object(request):
 
     print("API: PUT /{}/{} - md5 = {}".format(bucket_name, object_name, md5))
 
-    return web.json_response(status=200)
+    headers = {"ETag": "\"" +  md5 + "\""}
+
+    return web.json_response(status=200, headers=headers)
 
 
 if __name__ == '__main__':
-    app = web.Application()
+    app = web.Application(client_max_size=1024*1024*10)
 
     # Setup application routes.
     app.add_routes(routes)
@@ -66,4 +72,5 @@ if __name__ == '__main__':
     app.on_shutdown.append(on_shutdown)
 
     # Start the REST server.
-    web.run_app(app, host="localhost", port="8080")
+    web.run_app(app, host="0.0.0.0", port="80")
+    print("Total connections accepted during lifetime {}".format(len(connections_set)))
